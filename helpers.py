@@ -74,9 +74,6 @@ def get_pass():
         return pw
 
 
-
-
-
 # prompts user to input a year (4 digit integer) between current year and 1960.
 def get_start_year():
     year = None
@@ -95,6 +92,7 @@ def get_start_year():
         else:
             print("\nI couldn't read that, it should be 4 digits.")
     return year
+
 
 # prompts user to input a month (4 digit integer) between current year and 1960.
 def get_start_month():

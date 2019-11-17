@@ -1,13 +1,6 @@
-from selenium import webdriver
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.common.keys import Keys
 from bs4 import BeautifulSoup
 from datetime import datetime
-from helpers import to_sql_friendly, get_name, get_pass, get_start_year, get_start_month, build_scrape_dates, get_year, get_month, create_outdir
+from helpers import to_sql_friendly, get_name, get_pass, get_start_year, get_start_month, build_scrape_dates, get_month, create_outdir
 from multiprocessing import Pool
 from os import path, mkdir, getcwd
 from io import BytesIO
@@ -24,71 +17,45 @@ def get_name_and_pw():
     password = get_pass()
 
 
-def selenium_scrape(date):
+def requests_scrape(date):
 
 	# Set up variables for query
-	form_month_num = date[0]
-	form_year_num = get_year(date[1])
-	date_text = "{}-{}".format(get_month(date[0]), date[1])
+	form_month = date[0]
+	form_year = date[1]
+	url = 'https://www.dmr.nd.gov/oilgas/feeservices/stateprod.asp'
+	req_data = {'VTI-GROUP': '0', 'SELECTMONTH': str(form_month), 'SELECTYEAR': str(form_year), 'B1': 'Get State Volumes'}
 	tries = 0
 
+	date_text = "{}-{}".format(get_month(date[0]), date[1])
 	print("Beginning scrape for month of {}".format(date_text))
-
-	# Set up Selenium
-	options = webdriver.ChromeOptions()
-	options.add_argument('--headless')
-	options.add_argument('--disable-gpu')
-	options.add_argument('--no-sandbox')
-	capa = DesiredCapabilities.CHROME
-	capa["pageLoadStrategy"] = "none"
 
 	while True:
 		try:
-			# Initialize the driver
-			driver = webdriver.Chrome(executable_path='./chromedriver', desired_capabilities=capa, options=options)
-			
-			# Set up wait time
-			wait = WebDriverWait(driver, 10)
-			
-			# Get the web-pae
-			driver.get('https://{}:{}@www.dmr.nd.gov/oilgas/feeservices/stateprod.asp'.format(username, password))
-			
-			# Wait for the page to load
-			wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="month"]')))
-
-			# Select the month (1 = Jan -- 12 = Dec)
-			driver.find_element_by_xpath(f'//*[@id="month"]/option[{form_month_num}]').click()
-			# Select the year (1 = 2019 -- 69 = 1951)
-			driver.find_element_by_xpath(f'//*[@id="year"]/option[{form_year_num}]').click()
-			# Click the button to query the data
-			driver.find_element_by_xpath(f'/html/body/table/tbody/tr/td[2]/form/p[2]/input').click()
-			
-			# Wait for all the table to load
-			time.sleep(20)
+			r = requests.post(url, data=req_data, auth=(username, password))
 
 			# Use Beautiful Soup to get the HTML table
-			soup = BeautifulSoup(driver.page_source, 'html.parser')
+			soup = BeautifulSoup(r.text, 'html.parser')
 			table = soup.find(lambda tag: tag.name=='table' and tag.has_attr('id') and tag['id']=='largeTableOutput')
+
+
 			if table:
-				table_rows = table.find_all(lambda tag: tag.name=='tr')
+				t_headers = list()
+				for th in table.find_all("th"):
+					# remove any newlines and extra spaces from left and right
+					t_headers.append(th.text.replace('\n', ' ').strip())
+				#t_headers = table.find_all(lambda tag: tag.name=='th') # Can't get this way to work, (Using .stripped_strings in parse_table())
+				t_rows = table.find_all(lambda tag: tag.name=='tr')
 			else:
 				print("No data for month of {}".format(date_text))
-				driver.execute_script("window.stop();")
-				driver.quit()
 				return
-				
 
 			# Parse the table rows
-			df = parse_table(table_rows, form_month_num, form_year_num)
+			df = parse_table(t_headers, t_rows, form_month, form_year)
 			print("{} records found for {}".format(len(df), date_text))
-
-			#close the webdriver
-			driver.execute_script("window.stop();")
-			driver.quit()
 
 			return df
 
-		except TimeoutException:
+		except requests.exceptions.Timeout:
 			tries += 1
 			# Try the scrape 5 times before failing
 			if tries < 5:
@@ -97,16 +64,17 @@ def selenium_scrape(date):
 		break
 
 
-def parse_table(rows, month, year):
+def parse_table(headers, rows, month, year):
 	# Get rows as a list of lists
 	data = [list(row.stripped_strings) for row in rows]
 
 	# Load table to pandas dataframe
-	df = pd.DataFrame.from_records(data[1:])
-	df.columns = data[0]
+	df = pd.DataFrame.from_records(data[1:], columns=headers)
+	#df.columns = headers
+	
 	
 	# Name file (containing one month of data)
-	outname = '{}-{:02d}.csv'.format(get_year(year), month)
+	outname = '{}-{:02d}.csv'.format(year, month)
 	fullname = path.join(outdir, "by_month", outname)
 
 	# Save to CSV
@@ -129,7 +97,7 @@ if __name__ == "__main__":
 		get_name_and_pw()
 
 	start_year = get_start_year()
-	instance_count = 15
+	instance_count = 6
 	
 	if username and password and start_year:
 		outdir = create_outdir(today)
@@ -147,11 +115,15 @@ if __name__ == "__main__":
 		    filehandle.write(unzipped[0])
 		#with zipfile.ZipFile(wi_bytes) as wi_zip:
 		#	wi_zip.extractall(outdir)
-
+		
 		scrape_dates = build_scrape_dates(start_year)
+		#tmp
+		#monthly_dfs = list(requests_scrape(scrape_dates[0]))
+
+		
 		print("Scraping monthly production data with {} instances.".format(instance_count))
 		p = Pool(instance_count)
-		monthly_dfs = p.map(selenium_scrape, scrape_dates)
+		monthly_dfs = p.map(requests_scrape, scrape_dates)
 		p.terminate()
 		p.join()
 
