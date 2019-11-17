@@ -43,7 +43,6 @@ def requests_scrape(date):
 				for th in table.find_all("th"):
 					# remove any newlines and extra spaces from left and right
 					t_headers.append(th.text.replace('\n', ' ').strip())
-				#t_headers = table.find_all(lambda tag: tag.name=='th') # Can't get this way to work, (Using .stripped_strings in parse_table())
 				t_rows = table.find_all(lambda tag: tag.name=='tr')
 			else:
 				print("No data for month of {}".format(date_text))
@@ -69,9 +68,7 @@ def parse_table(headers, rows, month, year):
 	data = [list(row.stripped_strings) for row in rows]
 
 	# Load table to pandas dataframe
-	df = pd.DataFrame.from_records(data[1:], columns=headers)
-	#df.columns = headers
-	
+	df = pd.DataFrame.from_records(data[1:], columns=headers)	
 	
 	# Name file (containing one month of data)
 	outname = '{}-{:02d}.csv'.format(year, month)
@@ -113,13 +110,8 @@ if __name__ == "__main__":
 
 		with open(path.join(outdir, "Well_Index.csv"), 'wb') as filehandle:
 		    filehandle.write(unzipped[0])
-		#with zipfile.ZipFile(wi_bytes) as wi_zip:
-		#	wi_zip.extractall(outdir)
 		
 		scrape_dates = build_scrape_dates(start_year)
-		#tmp
-		#monthly_dfs = list(requests_scrape(scrape_dates[0]))
-
 		
 		print("Scraping monthly production data with {} instances.".format(instance_count))
 		p = Pool(instance_count)
@@ -140,7 +132,6 @@ if __name__ == "__main__":
 
 		print("Building WELL_INDEX SQLite3 table.")
 		wi_df = pd.read_csv(BytesIO(unzipped[0]))
-		#wi_df_b = pd.read_csv(wi_zip.open('WellIndex.csv'))
 		wi_df.columns = to_sql_friendly(wi_df.columns)
 		wi_df.to_sql('WELL_INDEX', conn, if_exists='append', index=False)
 
