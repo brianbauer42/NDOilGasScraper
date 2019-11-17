@@ -1,0 +1,19 @@
+INITIAL SETUP (This only has to be done once).
+1. Make sure you have python3
+        https://www.python.org/downloads/
+2  You will need to have Chrome installed on your computer.
+        https://www.google.com/chrome/
+3. You will also need to download the 'chrome driver' and put it in this directory.
+        https://sites.google.com/a/chromium.org/chromedriver/downloads
+4. open PowerShell, navigate to this directory, and type `pip3 install -r requirements.txt`
+
+USAGE
+At a PowerShell terminal, navigate to this folder.
+Type 'python3 scrape.py' and follow the prompts.
+Running time could be more than 30 minutes if going back further to 2005.
+On my quad core macbook pro, getting that 15 years of data should take about 10 minutes.
+
+NOTE ABOUT MACOS >= HIGH SIERRA
+multiprocessing will cause errors, fix by adding an env variable with this command:
+`export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES`
+reference: https://stackoverflow.com/questions/50168647/multiprocessing-causes-python-to-crash-and-gives-an-error-may-have-been-in-progr
