@@ -1,17 +1,29 @@
 INITIAL SETUP (This only has to be done once).
 1. Make sure you have python3
         https://www.python.org/downloads/
-2  You will need to have Chrome installed on your computer.
-        https://www.google.com/chrome/
-3. You will also need to download the 'chrome driver' and put it in this directory.
-        https://sites.google.com/a/chromium.org/chromedriver/downloads
-4. open PowerShell, navigate to this directory, and type `pip3 install -r requirements.txt`
+2. open PowerShell, navigate to this directory, and type `pip3 install -r requirements.txt`
+
+
+
+CONVENIENCE
+To save your login info so you aren't prompted on each run, you can create a file in this directory called:
+"credentials.py" in this directory. This file should contain the following 2 lines (the single quotes are required):
+username = 'ExampleName'
+password = 'ExamplePass'
+
+
 
 USAGE
 At a PowerShell terminal, navigate to this folder.
 Type 'python3 scrape.py' and follow the prompts.
-Running time could be more than 30 minutes if going back further to 2005.
-On my quad core macbook pro, getting that 15 years of data should take about 10 minutes.
+On my quad core macbook pro, getting that 15 years of data (starting 2005) took about 5 minutes.
+
+
+
+NOTE ABOUT WINDOWS
+I haven't tested it yet!
+
+
 
 NOTE ABOUT MACOS >= HIGH SIERRA
 multiprocessing will cause errors, fix by adding an env variable with this command:

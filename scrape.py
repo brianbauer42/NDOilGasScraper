@@ -37,7 +37,6 @@ def requests_scrape(date):
 			soup = BeautifulSoup(r.text, 'html.parser')
 			table = soup.find(lambda tag: tag.name=='table' and tag.has_attr('id') and tag['id']=='largeTableOutput')
 
-
 			if table:
 				t_headers = list()
 				for th in table.find_all("th"):
@@ -62,6 +61,15 @@ def requests_scrape(date):
 				continue
 		break
 
+#def create_table(connection, table_name, column_names):
+#	if not table_exists():
+#		# create_table
+
+		######
+#	if table_name == monthly_prod_tn:
+		# set unique contraints
+#		None
+		######
 
 def parse_table(headers, rows, month, year):
 	# Get rows as a list of lists
@@ -85,6 +93,8 @@ if __name__ == "__main__":
 	start_year = None
 	today = datetime.now()
 	well_index_url = 'https://www.dmr.nd.gov/oilgas/feeservices/flatfiles/Well_Index.zip'
+	monthly_prod_tn ='MONTHLY_PRODUCTION'
+	wi_tn = 'WELL_INDEX'
 
 	if (path.exists("credentials.py")):
 		from credentials import username, password
@@ -113,30 +123,60 @@ if __name__ == "__main__":
 		
 		scrape_dates = build_scrape_dates(start_year)
 		
+		# Scrapes the monthly production data and outputs a .csv file for every month
 		print("Scraping monthly production data with {} instances.".format(instance_count))
 		p = Pool(instance_count)
 		monthly_dfs = p.map(requests_scrape, scrape_dates)
 		p.terminate()
 		p.join()
 
+		# Combines all data into one .csv
 		print("Aggregating monthly production data.")
 		all_monthly_prod = pd.concat(monthly_dfs, axis=0)
 		all_monthly_prod.columns = to_sql_friendly(all_monthly_prod.columns)
 		results_name = "Well Production Data for {}-{} to {}-{}".format(get_month(1), start_year, get_month(today.month), today.year)
 		all_monthly_prod.to_csv(path.join(outdir, "Monthly Production Aggregated.csv"), index=False)
 
+		# Builds a new sqlite3 table for monthly production data
 		print("Building MONTHLY_PRODUCTION SQLite3 table.")
-		sqlite_filename = path.join(outdir, "results.sqlite")
+		sqlite_filename = path.join(outdir, "results.sqlite3")
 		conn = sqlite3.connect(sqlite_filename)
-		all_monthly_prod.to_sql('MONTHLY_PRODUCTION', conn, if_exists='append', index=False)
+		all_monthly_prod.to_sql(monthly_prod_tn, conn, if_exists='append', index=False)
 
+		# Builds a new sqlite3 table from the well index file
 		print("Building WELL_INDEX SQLite3 table.")
 		wi_df = pd.read_csv(BytesIO(unzipped[0]))
 		wi_df.columns = to_sql_friendly(wi_df.columns)
-		wi_df.to_sql('WELL_INDEX', conn, if_exists='append', index=False)
-
-		# print("Updating master SQLite3 DB.")
+		wi_df.to_sql(wi_tn, conn, if_exists='append', index=False)
 		conn.close()
+
+		# Creates or updates a sqlite3 database in the program root that can continuously be added to. 
+		print("Updating master SQLite3 DB.")
+		sqlite_master_file = "master.sqlite3"
+		mstr_conn = sqlite3.connect(sqlite_master_file)
+		wi_df.columns = to_sql_friendly(wi_df.columns)
+		wi_df.to_sql(wi_tn, mstr_conn, if_exists='append', index=False)
+		all_monthly_prod.to_sql(monthly_prod_tn, mstr_conn, if_exists='append', index=False)
+		# Add UNIQUE contraint across first four columns (File No, API No, Pool, and Date)
+		# to ensure no duplicate entries are added on subsequent runs.
+
+
+
+		#con = sqlite3.connect("master.sqlite3")
+
+		# Test to see if constraints exist		
+		#cur = con.cursor()
+		#cur.execute("select sql from sqlite_master where type='table' and name='{}'".format(monthly_prod_tn))
+		#schema = cur.fetchone()
+
+		#entries = [ tmp.strip() for tmp in schema[0].splitlines() if tmp.find("constraint")>=0 or tmp.find("unique")>=0 ]
+		#for i in entries: print(i)
+
+		# Test to see if constraints exist
+		#cur = conn.cursor()
+		#unique_tns = wi_df.columns[:4].text
+		#cur.execute('ALTER TABLE {} ADD CONSTRAINT file_api_pool_date_entry UNIQUE ({},{},{},{});'.format(monthly_prod_tn, *unique_tns))
+		#cur.close()
 
 		print("Done.\nResults saved in:\n{}".format(path.join(getcwd(), outdir)))
 			

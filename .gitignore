@@ -3,6 +3,7 @@ credentials.py
 ND Oil-Gas Data*/
 chromedriver
 todo.txt
+*.sqlite3
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
