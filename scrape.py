@@ -77,8 +77,9 @@ def parse_table(headers, rows, month, year):
 
 	# Load table to pandas dataframe
 	df = pd.DataFrame.from_records(data[1:], columns=headers)	
-	
-	# Name file (containing one month of data)
+	df = modify_data_types(df)
+
+	# Name file (containing one month of data) and output a file.
 	outname = '{}-{:02d}.csv'.format(year, month)
 	fullname = path.join(outdir, "by_month", outname)
 
@@ -86,6 +87,11 @@ def parse_table(headers, rows, month, year):
 	df.to_csv(fullname, index=False)
 	return df
 
+def modify_data_types(df):
+	df["Date"] = pd.to_datetime(df["Date"], format="%m-%Y")
+	for heading in ['File No', 'API No', 'Pool', 'Date', 'BBLS Oil', 'BBLS Water', 'MCF Gas', 'Days Produced', 'Oil Sold', 'MCF Sold', 'MCF Flared']:
+		df[heading] = pd.to_int(df[heading])
+	return df
 
 if __name__ == "__main__":
 	# Global variables
@@ -132,16 +138,16 @@ if __name__ == "__main__":
 
 		# Combines all data into one .csv
 		print("Aggregating monthly production data.")
-		all_monthly_prod = pd.concat(monthly_dfs, axis=0)
-		all_monthly_prod.columns = to_sql_friendly(all_monthly_prod.columns)
+		amp_df = pd.concat(monthly_dfs, axis=0)
+		amp_df.columns = to_sql_friendly(amp_df.columns)
 		results_name = "Well Production Data for {}-{} to {}-{}".format(get_month(1), start_year, get_month(today.month), today.year)
-		all_monthly_prod.to_csv(path.join(outdir, "Monthly Production Aggregated.csv"), index=False)
+		amp_df.to_csv(path.join(outdir, "Monthly Production Aggregated.csv"), index=False)
 
 		# Builds a new sqlite3 table for monthly production data
 		print("Building MONTHLY_PRODUCTION SQLite3 table.")
 		sqlite_filename = path.join(outdir, "results.sqlite3")
 		conn = sqlite3.connect(sqlite_filename)
-		all_monthly_prod.to_sql(monthly_prod_tn, conn, if_exists='append', index=False)
+		amp_df.to_sql(monthly_prod_tn, conn, if_exists='append', index=False)
 
 		# Builds a new sqlite3 table from the well index file
 		print("Building WELL_INDEX SQLite3 table.")
@@ -156,7 +162,7 @@ if __name__ == "__main__":
 		mstr_conn = sqlite3.connect(sqlite_master_file)
 		wi_df.columns = to_sql_friendly(wi_df.columns)
 		wi_df.to_sql(wi_tn, mstr_conn, if_exists='append', index=False)
-		all_monthly_prod.to_sql(monthly_prod_tn, mstr_conn, if_exists='append', index=False)
+		amp_df.to_sql(monthly_prod_tn, mstr_conn, if_exists='append', index=False)
 		# Add UNIQUE contraint across first four columns (File No, API No, Pool, and Date)
 		# to ensure no duplicate entries are added on subsequent runs.
 
